@@ -1,0 +1,44 @@
+[package]
+name = "async"
+version = "0.0.0"
+authors = ["Andrei Marinica <andrei.marinica@dharitri.com>"]
+edition = "2018"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+wasm-output-mode = ["dharitri-wasm-node"]
+
+[dependencies.async-alice]
+path = "async-alice"
+
+[dependencies.async-bob]
+path = "async-bob"
+
+[dependencies.forwarder]
+path = "forwarder"
+
+[dependencies.forwarder-raw]
+path = "forwarder-raw"
+
+[dependencies.vault]
+path = "vault"
+
+[dependencies.dharitri-wasm]
+version = "0.0.10"
+path = "../../../dharitri-wasm"
+
+[dependencies.dharitri-wasm-derive]
+version = "0.0.10"
+path = "../../../dharitri-wasm-derive"
+
+[dependencies.dharitri-wasm-node]
+version = "0.0.10"
+path = "../../../dharitri-wasm-node"
+optional = true
+
+[dev-dependencies.dharitri-wasm-debug]
+version = "0.0.10"
+path = "../../../dharitri-wasm-debug"

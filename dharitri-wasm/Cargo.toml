@@ -1,0 +1,25 @@
+[package]
+name = "dharitri-wasm"
+version = "0.0.10"
+edition = "2018"
+
+authors = ["Andrei Marinica <andrei.marinica@dharitri.com>", "Dharitri Network <contact@dharitri.com>"]
+license = "GPL-3.0-only"
+readme = "README.md"
+repository = "https://github.com/Battula-anil-app-could/dx-sdk-rs-new"
+homepage = "https://dharitri.com/"
+documentation = "https://docs.dharitri.com/"
+description = "Dharitri WebAssembly smart contract API"
+keywords = ["dharitri", "wasm", "webassembly", "blockchain", "contract"]
+categories = ["no-std", "wasm", "cryptography::cryptocurrencies", "development-tools"]
+
+[dependencies]
+wee_alloc = "0.4"
+arrayvec = { version = "0.5.2", default-features = false, features = ["array-sizes-33-128", "array-sizes-129-255"] }
+hashbrown = "0.9.1"
+hex-literal = "0.3.1"
+
+[dependencies.dharitri-codec]
+version = "0.0.6"
+path = "../dharitri-codec"
+features = ["derive"]

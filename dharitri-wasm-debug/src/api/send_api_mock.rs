@@ -1,0 +1,192 @@
+use super::big_uint_api_mock::*;
+use crate::async_data::AsyncCallTxData;
+use crate::{SendBalance, TxContext, TxOutput, TxPanic};
+use dharitri_wasm::api::{BlockchainApi, ContractSelfApi, SendApi, StorageReadApi, StorageWriteApi};
+use dharitri_wasm::types::{Address, ArgBuffer, BoxedBytes, CodeMetadata, TokenIdentifier};
+use num_bigint::BigUint;
+use num_traits::Zero;
+
+impl TxContext {
+	fn get_available_moax_balance(&self) -> BigUint {
+		// start with the pre-existing balance
+		let mut available_balance = self.blockchain_info_box.contract_balance.clone();
+
+		// add amount received
+		available_balance += &self.tx_input_box.call_value;
+
+		// already sent
+		let tx_output = self.tx_output_cell.borrow();
+		for send_balance in &tx_output.send_balance_list {
+			available_balance -= &send_balance.amount;
+		}
+
+		available_balance
+	}
+
+	fn get_available_dct_balance(&self, token_name: &[u8]) -> BigUint {
+		// start with the pre-existing balance
+		let mut available_balance = self
+			.blockchain_info_box
+			.contract_dct
+			.get(token_name)
+			.unwrap_or(&BigUint::zero())
+			.clone();
+
+		// add amount received (if the same token)
+		if self.tx_input_box.dct_token_identifier == token_name {
+			available_balance += &self.tx_input_box.dct_value;
+		}
+		let tx_output = self.tx_output_cell.borrow();
+
+		// already sent
+		for send_balance in &tx_output.send_balance_list {
+			if send_balance.token == token_name {
+				available_balance -= &send_balance.amount;
+			}
+		}
+
+		available_balance
+	}
+}
+
+impl SendApi<RustBigUint> for TxContext {
+	fn direct_moax(&self, to: &Address, amount: &RustBigUint, _data: &[u8]) {
+		if amount.value() > self.get_available_moax_balance() {
+			std::panic::panic_any(TxPanic {
+				status: 10,
+				message: b"failed transfer (insufficient funds)".to_vec(),
+			});
+		}
+
+		let mut tx_output = self.tx_output_cell.borrow_mut();
+		tx_output.send_balance_list.push(SendBalance {
+			recipient: to.clone(),
+			token: TokenIdentifier::moax(),
+			amount: amount.value(),
+		});
+	}
+
+	fn direct_moax_execute(
+		&self,
+		_to: &Address,
+		_amount: &RustBigUint,
+		_gas_limit: u64,
+		_function: &[u8],
+		_arg_buffer: &ArgBuffer,
+	) -> Result<(), &'static [u8]> {
+		panic!("direct_moax_execute not yet implemented")
+	}
+
+	fn direct_dct_execute(
+		&self,
+		to: &Address,
+		token: &[u8],
+		amount: &RustBigUint,
+		_gas: u64,
+		_function: &[u8],
+		_arg_buffer: &ArgBuffer,
+	) -> Result<(), &'static [u8]> {
+		if amount.value() > self.get_available_dct_balance(token) {
+			std::panic::panic_any(TxPanic {
+				status: 10,
+				message: b"insufficient funds".to_vec(),
+			});
+		}
+
+		let mut tx_output = self.tx_output_cell.borrow_mut();
+		tx_output.send_balance_list.push(SendBalance {
+			recipient: to.clone(),
+			token: TokenIdentifier::from(token),
+			amount: amount.value(),
+		});
+		Ok(())
+	}
+
+	fn direct_dct_nft_execute(
+		&self,
+		_to: &Address,
+		_token: &[u8],
+		_nonce: u64,
+		_amount: &RustBigUint,
+		_gas_limit: u64,
+		_function: &[u8],
+		_arg_buffer: &ArgBuffer,
+	) -> Result<(), &'static [u8]> {
+		panic!("direct_dct_nft_execute not implemented yet");
+	}
+
+	fn async_call_raw(&self, to: &Address, amount: &RustBigUint, data: &[u8]) -> ! {
+		// the cell is no longer needed, since we end in a panic
+		let mut tx_output = self.tx_output_cell.replace(TxOutput::default());
+		tx_output.async_call = Some(AsyncCallTxData {
+			to: to.clone(),
+			call_value: amount.value(),
+			call_data: data.to_vec(),
+			tx_hash: self.blockchain().get_tx_hash(),
+		});
+		std::panic::panic_any(tx_output)
+	}
+
+	fn deploy_contract(
+		&self,
+		_gas: u64,
+		_amount: &RustBigUint,
+		_code: &BoxedBytes,
+		_code_metadata: CodeMetadata,
+		_arg_buffer: &ArgBuffer,
+	) -> Address {
+		panic!("deploy_contract not yet implemented")
+	}
+
+	fn execute_on_dest_context_raw(
+		&self,
+		_gas: u64,
+		_address: &Address,
+		_value: &RustBigUint,
+		_function: &[u8],
+		_arg_buffer: &ArgBuffer,
+	) -> Vec<BoxedBytes> {
+		panic!("execute_on_dest_context_raw not implemented yet!");
+	}
+
+	fn execute_on_dest_context_by_caller_raw(
+		&self,
+		_gas: u64,
+		_address: &Address,
+		_value: &RustBigUint,
+		_function: &[u8],
+		_arg_buffer: &ArgBuffer,
+	) -> Vec<BoxedBytes> {
+		panic!("execute_on_dest_context_by_caller_raw not implemented yet!");
+	}
+
+	fn execute_on_same_context_raw(
+		&self,
+		_gas: u64,
+		_address: &Address,
+		_value: &RustBigUint,
+		_function: &[u8],
+		_arg_buffer: &ArgBuffer,
+	) {
+		panic!("execute_on_same_context_raw not implemented yet!");
+	}
+
+	fn storage_store_tx_hash_key(&self, data: &[u8]) {
+		let tx_hash = self.blockchain().get_tx_hash();
+		self.storage_store_slice_u8(tx_hash.as_bytes(), data);
+	}
+
+	fn storage_load_tx_hash_key(&self) -> BoxedBytes {
+		let tx_hash = self.blockchain().get_tx_hash();
+		self.storage_load_boxed_bytes(tx_hash.as_bytes())
+	}
+
+	fn call_local_dct_built_in_function(
+		&self,
+		_gas: u64,
+		_function: &[u8],
+		_arg_buffer: &ArgBuffer,
+	) {
+		panic!("call_local_dct_built_in_function not implemented yet!");
+	}
+}
